@@ -1,0 +1,373 @@
+---
+title: "Math5361 Homework II"
+author: "Huiqiong Liao"
+date: "2/8/2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+fontsize: 12pt
+---
+
+##Question 1
+###(a)
+
+Given the density function of $Cauchy (x;\theta)$:
+
+$$P(x;\theta)=\cfrac{1}{\pi[1+(x-\theta)^2]}$$
+
+Where $x_{1}, x_{2} ... x_{n}$ are i.i.d. sample and $l(\theta)$ equals to:
+
+$$l(\theta)=\ln (\prod_{1}^n p(x_{i};\theta))=\sum_{1}^n \ln (\cfrac{1}{\pi[1+(x_{i}-\theta)^2]})$$
+$$=\sum_{1}^n \ln (\cfrac{1}{\pi})+\sum_{1}^n \ln(\cfrac{1}{1+(x_{i}-\theta)^2})=-n\ln\pi-\sum_{1}^n \ln[1+(\theta-x_{i})^2]$$
+
+Next, to prove $l^{'}(\theta)$,
+
+$$l^{'}(\theta)=0-[\sum_{1}^n \ln(1+(\theta-x_{i})^2)]^{'}_\theta=-2\sum_{1}^n \cfrac{\theta-x_{i}}{1+(\theta-x_{i})^2}$$
+
+Then, to prove the second derivative $l^{''}(\theta)$, do the derivative of
+$l^{'}(\theta)$,
+
+$$l^{''}(\theta)=-2\sum_{1}^n (\cfrac{\theta-x_{i}}{1+(\theta-x_{i})^2})^{'}_\theta=-2\sum_{1}^n \cfrac{1-{x_{i}}^2-\theta^2+2x_{i}\theta}{[1+(\theta-x_{i})^2]^2}=-2\sum_{1}^n \cfrac{1-(\theta-x_{i})^2}{[1+(\theta-x_{i})^2]^2}$$
+
+The final step is to calculate the fisher score $I(\theta)$, do the integration:
+
+$$I(\theta)=n\int_{-\infty}^\infty \cfrac{[p^{'}(x)]^2}{p(x)}dx=\cfrac{4n}{\pi}\int_{-\infty}^\infty \cfrac{x^2}{(1+x^2)^3}dx=\cfrac{4n}{\pi}[\int_{-\infty}^\infty \cfrac{1}{(1+x^2)^2}dx-\int_{-\infty}^\infty \cfrac{1}{(1+x^2)^3}dx]$$
+
+Then,apply the $In=\int \cfrac{1}{(x^2+a^2)^n}dx$ method, do the integration by parts:
+
+$$\int \cfrac{1}{(1+x^2)^2}dx=\cfrac{x}{2(x^2+1)}+\cfrac{1}{2} \int \cfrac{1}{x^2+1}dx=\cfrac{x}{2(x^2+1)}+\cfrac{1}{2}\arctan(x)$$
+And the second part equals to:
+
+$$\int \cfrac{1}{(x^2+1)^3}dx=\cfrac{3}{8}(\cfrac{x}{x^2+1})+\cfrac{3}{8}\arctan(x)+\cfrac{x}{4(x^2+1)^2}$$  
+
+Add them together to get the final answer:  
+
+$$I(\theta)=\cfrac{4n}{\pi}(\cfrac{\arctan(x)}{8}|_{-\infty}^{+\infty}+\cfrac{(x^3-x)}{8(x^2+1)^2}|_{-\infty}^{+\infty}) = \cfrac{4n}{\pi}(\cfrac{\pi}{8})+0=\cfrac{n}{2}$$
+
+###(b) Graph the likelihood function
+
+```{r}
+x <- c(1.77, -0.23, 2.76, 3.80, 3.47, 56.75, -1.34, 4.24, -2.44,
+       3.29, 3.71, -2.40, 4.53, -0.07, -1.05, -13.87, -2.53, -1.75)
+th <- seq(-50,50,0.5)
+n <- length(x)
+ll <- c()
+for (i in 1:length(th)) {
+  ll[i] <- -n*log(pi)-sum(log(1+(th[i]-x)^2))
+}
+plot(th,ll,type = "l", ylab = "ll", xlab = "theta", 
+main = "Cauchy Log Likelihood ")
+```
+
+Created a NewtonR function to find MLE for each starting point. 
+
+```{r}
+#find MLE for theta using the Newton-Raphson method
+cauchy.ll.1st.deriv <- function(theta){
+  z <- -2*(sum((theta-x)/(1+(theta-x)^2)))
+  return(z)
+}
+cauchy.ll.2nd.deriv <- function(theta){
+  y <- -2*(sum((1-(theta-x)^2)/((1+(theta-x)^2)^2)))
+  return(y)
+} 
+staring.p <- c(-11,-1, 0, 1.5, 4, 4.7, 7, 8, 38)
+sample_mean <- mean(staring.p)
+
+NewtonR <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200){
+    theta[i+1] <- theta[i] - 
+      cauchy.ll.1st.deriv(theta[i]) /cauchy.ll.2nd.deriv(theta[i])
+    difference <- abs(theta[i+1] - theta[i])
+    i <- i + 1 
+  }
+  return(theta[i])
+}
+NewtonR(-11)
+NewtonR(-1)
+NewtonR(0)
+NewtonR(1.5)
+NewtonR(4)
+NewtonR(7)
+NewtonR(8)
+NewtonR(38)
+NewtonR(sample_mean)
+
+# When starting at -11,7,8,and 38, the function cannot find the optimial point
+# Sample mean(5.68889) also is not a good starting point
+```
+
+###(c)Fixed-point iteration
+
+Given $G(x)=\alpha l^{'}(\theta)+\theta$ with $\alpha_{1}=1$, $\alpha_{2}=0.64$, and $\alpha_{3}=0.25$
+Using $\theta_{t+1}=\theta_{t}+\alpha l^{'}(\theta_{t})$ to do iteration.  
+
+The first case: when $\alpha=1$  
+
+```{r}
+#alpha = 1, 0.64 or 0.25
+#alpha <- -1 / cauchy.ll.2nd.deriv(theta)
+alpha1 <- 1 
+fixP1 <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200) {
+    theta[i+1] <- theta[i] + alpha1 * cauchy.ll.1st.deriv(theta[i])
+    difference <- abs(theta[i+1] - theta[i])
+    i <- i + 1
+  }
+  return(theta[i])
+}
+
+fixP1(-11)
+fixP1(-1)
+fixP1(0)
+fixP1(1.5)
+fixP1(4)
+fixP1(4.7)
+fixP1(7)
+fixP1(8)
+fixP1(38)
+```  
+
+The second case, when $\alpha=0.64$  
+
+```{r}
+alpha2 <- 0.64
+fixP2 <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200) {
+    theta[i+1] <- theta[i] + alpha2 * cauchy.ll.1st.deriv(theta[i])
+    difference <- abs(theta[i+1] - theta[i])
+    i <- i + 1
+  }
+  return(theta[i])
+}
+
+fixP2(-11)
+fixP2(-1)
+fixP2(0)
+fixP2(1.5)
+fixP2(4)
+fixP2(4.7)
+fixP2(7)
+fixP2(8)
+fixP2(38)
+```  
+
+The third case, when $\alpha=0.25$  
+
+```{r}
+alpha3 <- 0.25
+fixP3 <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200) {
+    theta[i+1] <- theta[i] + alpha3 * cauchy.ll.1st.deriv(theta[i])
+    difference <- abs(theta[i+1] - theta[i])
+    i <- i + 1
+  }
+  return(theta[i])
+}
+
+fixP3(-11)
+fixP3(-1)
+fixP3(0)
+fixP3(1.5)
+fixP3(4)
+fixP3(4.7)
+fixP3(7)
+fixP3(8)
+fixP3(38)
+```  
+
+###(d)Fisher Score  
+
+```{r}
+fisher.score <- n / 2
+FisherFun <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200){
+    theta[i+1] <- theta[i] + cauchy.ll.1st.deriv(theta[i]) / (fisher.score)
+    difference <- abs(theta[i+1] - theta[i])
+    i <- i + 1
+  }
+  return(theta[i])
+}
+FisherFun(-11) 
+FisherFun(-1)
+FisherFun(0)
+FisherFun(1.5)
+FisherFun(4)
+FisherFun(4.7)
+FisherFun(7)
+FisherFun(8)
+FisherFun(38)
+#when FisherFun starts at -11, -1, and 0,
+#it will return an optimal value at -0.5914735
+#when FisherFun starts at 1.5, 4, 4.7, 7, and 8, 
+#it will return an optimal value at 3.021345
+#when starts at 38, it will return at 3.037648
+```  
+
+To do Refinement: plug -0.5914735, 3.021345, and 3.037648 into NewtonR function  
+
+```{r}
+NewtonR(-0.5914735)
+NewtonR(3.021345)
+NewtonR(3.037648)
+```  
+
+###(e)Comments  
+
+Newton's method is a very efficient way to find roots by iteration, although it has some limitations.  
+
+Different starting points may result in different converge values. Not all the starting point can find it's optimal value efficiently by Newton-Raphson method.  
+
+Newton-Raphson methods: $G(x)=x-\cfrac{f(x)}{f^{'}(x)}$  
+
+Fixed point method choses $\alpha_{t}=-\cfrac{1}{f^{'}(x_{t})}$, which simplifies $G(x)=x-\cfrac{f(x)}{f^{'}(x)}$ as $G(x)=x+\alpha_{t}f(x)$. And the apply of $\alpha_{t}$ leads to a faster convergence order.  
+
+Part (c) involves using Fisher scoring to find MLE of $\theta$ first, then applies Newton-Raphson to do refinement. This method is the most stable one to use.   
+
+##Question 2
+###(a) Find log-likelihood function  
+
+Given $p(x;\theta)=\cfrac{1-\cos(x-\theta)}{2\pi}$, do the same method as Question 1, and get:
+$$l(\theta)=\sum_{1}^{n} \ln[\cfrac{1-\cos(x_{i}-\theta)}{2\pi}]=-n\ln(2\pi)+\sum_{1}^{n}\ln[1-\cos(x_{i}-\theta)]$$  
+
+```{r}
+x2 <- c(3.91, 4.85, 2.28, 4.06, 3.70, 4.04, 5.46, 3.53, 2.28, 1.96,
+       2.53, 3.88, 2.22, 3.47, 4.82, 2.46, 2.99, 2.54, 0.52)
+staring_p <- c(-11,-1, 0, 1.5, 4, 4.7, 7, 8, 38)
+#2(a)
+theta <- seq(-pi, pi, 0.01)
+n2 <- length(x2)
+llh <- rep(0,length(theta))
+for (i in 1:length(theta)) {
+  llh[i] <- sum(log((1 - cos(x2 - theta[i])) / (2 * pi)))
+}
+plot(theta, llh, type = "l", ylab = "llh", xlab = "theta", 
+main = "Log Likelihood distribution")
+```  
+
+###(b)  
+
+$$E[x|\theta]=\int_{0}^{2\pi} \cfrac{1-cos(x-\theta)}{2\pi}dx=\cfrac{1}{2\pi}[2\pi-\int_{0}^{2\pi}cos(x-\theta)]dx=1$$  
+
+$E[x|\theta]=1$ means that the MME for $\theta$ is just the sample mean  
+
+```{r}
+mme <- mean(x2)
+print(mme)
+```  
+
+###(c)  
+
+```{r}
+llh1stDeriv <- function (theta){
+  w <- -(sum(sin(x2 - theta)/(1 - cos(x2 - theta))))
+  return(w)
+}
+llh2ndDeriv <- function(theta){
+  k <- -(sum(1 / (1 - cos(x2 - theta))))
+  return(k)
+}
+
+nr_method <- function(theta0){
+  theta <- array()
+  theta[1] <- theta0
+  i <- 1
+  difference <- 10
+  while (abs(difference)>10^(-10) & i<200) {
+    theta[i+1] <- theta[i] - llh1stDeriv(theta[i]) / llh2ndDeriv(theta[i])
+    difference <- theta[i+1] - theta[i]
+    i <- i + 1
+  }
+  return(theta[i])
+}
+
+nr_method(mme)
+```  
+
+###(d)  
+
+plug -2.7 and 2.7 as the initial value of $\theta$ into nr_method function  
+
+```{r}
+nr_method(-2.7)
+nr_method(2.7)
+```  
+
+###(e)  
+
+```{r}
+new.starting.p <- seq(-pi,pi,length.out = 200)
+calculation <- sapply(new.starting.p,nr_method)
+converge.point <- round(calculation,6)
+counting.result <- as.data.frame(table(converge.point))
+print(counting.result)
+```  
+
+##Question 3
+###(a)  
+
+```{r}
+beetle <- data.frame(
+  days = c(0, 8, 28, 41, 63, 69, 97, 117, 135, 154),
+  beetles = c(2, 47, 192, 256, 768, 896, 1120, 896, 1184, 1024))
+
+pop.growth.fun <- function(t, K, r){
+  f <- (2 * K) / (2 + (K - 2) * exp(-r * t))
+  return(f)
+} 
+
+Gauss.N <- nls(beetles~pop.growth.fun(days, K, r), data = beetle, 
+        start = list(K = 1300, r = 0.3), trace = TRUE)
+summary(Gauss.N)
+```  
+
+###(b)  
+
+```{r}
+days = c(0, 8, 28, 41, 63, 69, 97, 117, 135, 154)
+beetles = c(2, 47, 192, 256, 768, 896, 1120, 896, 1184, 1024)
+SSE <- function(K, r){
+  sse.value <- sum((beetles - (2*K/(2+(K-2)*exp(-r*days))))^2)
+  return(sse.value)
+}
+SSE.matri <- matrix(0,100,100, byrow = TRUE)
+for (i in 1:100){
+  for (j in 1:100){
+    K <- 300+12*i
+    r <- 0+0.003*j
+    SSE.matri[i, j] <- SSE(K, r)
+  }
+}
+K <- seq(300, 1500, length.out = 100)
+r <- seq(0, 0.3, length.out = 100)
+contour(K, r, SSE.matri, col = "blue", main = "Contour Plot", 
+xlab = "Population", ylab = 'Growth Rate')
+```  
+  
+###(c)  
+
+I choose to use Fisher Scoring first then to use Newton-Raphson to do refinement.  
+
+Given log $N_{t}$ are i.i.d. with mean $log(f(t))$ and variance $\sigma^2$.
+
